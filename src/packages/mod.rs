@@ -1,3 +1,4 @@
+use log::info;
 use serde_json::{json, Value};
 
 use crate::{
@@ -34,7 +35,7 @@ fn clone(
     branch: &str,
     source_path: &PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Cloning...");
+    info!("Cloning");
     clone_else_pull(&package.repo, &source_path, &branch)?;
     Ok(())
 }
@@ -43,7 +44,7 @@ fn target_cache_copy(
     package: &Package,
     source_path: &PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("[target-cache] Copying...");
+    info!(target: "target-cache", "Copying Cache");
     let mut targets_path = env::current_exe()?;
     targets_path.pop();
     targets_path.push(&TARGETS_DIR);
@@ -67,10 +68,11 @@ fn build(
     source_path: &PathBuf,
     experiments: &Option<Vec<Experiment>>,
 ) -> Result<Output, Box<dyn std::error::Error>> {
-    println!("Building...");
     if has_experiment(experiments, &Experiment::TargetCache) {
         target_cache_copy(&package, &source_path)?;
     }
+
+    info!("Building");
 
     // Build the package and get the output as a bunch of json
     // If target-cache is enabled, it will use that instead of
@@ -90,7 +92,7 @@ fn build(
 }
 
 fn cache(package: &Package, source_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    println!("[target-cache] Caching...");
+    info!(target: "target-cache", "Caching");
 
     let mut targets_path = env::current_exe()?;
     targets_path.pop();
@@ -110,7 +112,7 @@ fn cache(package: &Package, source_path: &PathBuf) -> Result<(), Box<dyn std::er
     Ok(())
 }
 fn clean(source_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Cleaning...");
+    info!("Cleaning");
     Command::new("cargo")
         .arg("clean")
         .current_dir(&source_path)
@@ -123,7 +125,7 @@ fn install(
     bin_path: &PathBuf,
     output: &Output,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    println!("Installing...");
+    info!("Installing");
     let stdout = String::from_utf8(output.to_owned().stdout)?;
 
     // Parse the JSON
@@ -147,7 +149,7 @@ fn add_one(
     version: &str,
     experiments: &Option<Vec<Experiment>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Installing package `{}`...", &package.id);
+    info!("Installing package `{}`", &package.id);
 
     if package.versions.as_object().unwrap().is_empty() {
         return Err(Box::new(PackageNoVersionsError(package.id.clone())));
@@ -185,7 +187,7 @@ fn add_one(
     } else {
         clean(&source_path)?;
     }
-    println!("Adding package to binary index...");
+    info!("Adding to binary index");
     // Map the ID to the path in the binary index
     let mut index_file = bin_path.clone();
     index_file.push("index.json");
@@ -206,7 +208,7 @@ fn add_one(
 
     fs::write(index_file, serde_json::to_string(&index)?)?;
 
-    println!("Installed `{}`", &package.id);
+    info!("Installed `{}`", &package.id);
     println!();
     Ok(())
 }
@@ -219,15 +221,62 @@ fn get_executable_path(build_out: &Vec<Value>) -> Option<PathBuf> {
     })
 }
 
-pub fn remove(packages: &Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+pub fn remove(
+    packages: &Vec<String>,
+    experiments: &Option<Vec<Experiment>>,
+) -> Result<(), Box<dyn std::error::Error>> {
     packages
         .iter()
-        .try_for_each(|package| remove_one(&package))?;
+        .try_for_each(|package| remove_one(&package, experiments))?;
     Ok(())
 }
 
-fn remove_one(id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Removing package `{}`...", id);
+fn remove_bin(index_file: &PathBuf, id: &str) -> Result<String, Box<dyn std::error::Error>> {
+    info!("Removing from binary index");
+    let index = fs::read_to_string(&index_file)?;
+    let index: Value = serde_json::from_str(&index).unwrap_or_default();
+    let path = index
+        .get(id)
+        .ok_or(PackageNotFoundError(id.to_string()))?
+        .as_str()
+        .unwrap();
+
+    // Remove the package from the index
+    let mut index = index.clone();
+    index.as_object_mut().unwrap().remove(id);
+    fs::write(index_file, serde_json::to_string(&index)?)?;
+    Ok(path.to_owned())
+}
+
+fn remove_pkg(
+    bins_path: &PathBuf,
+    sources_path: &PathBuf,
+    executable_path: &String,
+    id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Removing package");
+    // Remove the package
+    let mut full_path = bins_path.clone();
+    full_path.push(&executable_path);
+
+    let mut source_path = sources_path.clone();
+    source_path.push(&id);
+
+    let source_exists = Path::new(&source_path).try_exists().unwrap();
+
+    if source_exists {
+        fs::remove_dir_all(&source_path)?;
+    }
+
+    fs::remove_file(full_path)?;
+    Ok(())
+}
+
+fn remove_one(
+    id: &str,
+    experiments: &Option<Vec<Experiment>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Removing package `{}`", id);
 
     let mut sources_path = env::current_exe()?;
     sources_path.pop();
@@ -246,37 +295,24 @@ fn remove_one(id: &str) -> Result<(), Box<dyn std::error::Error>> {
         return Err(Box::new(PackageNotFoundError(id.to_string())));
     }
 
-    let index = fs::read_to_string(&index_file)?;
-    let index: Value = serde_json::from_str(&index).unwrap_or_default();
-    let path = index
-        .get(id)
-        .ok_or(PackageNotFoundError(id.to_string()))?
-        .as_str()
-        .unwrap();
+    let executable_path = remove_bin(&index_file, &id)?;
+    remove_pkg(&bins_path, &sources_path, &executable_path, &id)?;
 
-    println!("Removing from binary index...");
-    // Remove the package from the index
-    let mut index = index.clone();
-    index.as_object_mut().unwrap().remove(id);
-    fs::write(index_file, serde_json::to_string(&index)?)?;
+    if has_experiment(experiments, &Experiment::TargetCache) {
+        let mut targets_path = env::current_exe()?;
+        targets_path.pop();
+        targets_path.push(&TARGETS_DIR);
+        fs::create_dir_all(&targets_path)?;
 
-    println!("Removing package...");
-    // Remove the package
-    let mut full_path = bins_path.clone();
-    full_path.push(path);
+        let mut target_path = targets_path.clone();
+        target_path.push(&id);
 
-    let mut source_path = sources_path.clone();
-    source_path.push(id);
-
-    let source_exists = Path::new(&source_path).try_exists().unwrap();
-
-    if source_exists {
-        fs::remove_dir_all(source_path)?;
+        if Path::try_exists(&target_path)? {
+            fs::remove_dir_all(&target_path)?;
+        }
     }
 
-    fs::remove_file(full_path)?;
-
-    println!("Package removed");
+    info!("Package removed");
     println!();
     Ok(())
 }

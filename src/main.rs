@@ -1,10 +1,14 @@
 use clap::{Parser, Subcommand, ValueEnum};
+use colored::*;
 use experiments::has_experiments;
 use index::{update, Package};
+use log::{error, warn};
+use logger::init;
 
 pub mod experiments;
 pub mod git;
 pub mod index;
+pub mod logger;
 pub mod packages;
 pub mod repo;
 
@@ -42,10 +46,11 @@ enum Commands {
     /// Updates the index
     Update,
     /// Lists versions of a package
-    Versions { package: String },
+    Versions { id: String },
 }
 
 fn main() {
+    init().unwrap();
     let args = Args::parse();
 
     if has_experiments(&args.experiments) {
@@ -58,7 +63,10 @@ fn main() {
             .collect::<Vec<String>>()
             .join(", ");
 
-        println!("Warning: You have experiments ({}) enabled. These are experimental and may not work as expected.", experiments_joined);
+        warn!(
+            "You have experiments ({}) enabled. These are experimental and may not work as expected.",
+            experiments_joined.blue()
+        );
     }
 
     match &args.command {
@@ -75,30 +83,35 @@ fn main() {
 
             let packages = Package::from_ids(&ids);
             if packages.is_err() {
-                eprintln!("{}", &packages.err().unwrap());
+                error!("{}", &packages.err().unwrap());
                 return;
             }
             let packages = packages.unwrap();
 
             let error = packages::add(&packages, &versions, &args.experiments).err();
             if error.is_some() {
-                eprintln!("{}", error.unwrap());
+                error!("{}", error.unwrap());
             }
         }
         Commands::Remove { ids } => {
-            let error = packages::remove(ids).err();
+            let error = packages::remove(&ids, &args.experiments).err();
             if error.is_some() {
-                eprintln!("{}", error.unwrap());
+                error!("{}", error.unwrap());
             }
         }
         Commands::Update => {
             let error = update().err();
             if error.is_some() {
-                eprintln!("{}", error.unwrap());
+                error!("{}", error.unwrap());
             }
         }
-        Commands::Versions { package: id } => {
-            let package = Package::from_id(id).expect("Package not found");
+        Commands::Versions { id } => {
+            let package = Package::from_id(&id);
+            if package.is_err() {
+                error!("{}", &package.err().unwrap());
+                return;
+            }
+            let package = package.unwrap();
             packages::print_versions(&package);
         }
     };
