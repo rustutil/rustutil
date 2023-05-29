@@ -38,7 +38,7 @@ impl Package {
 }
 
 #[derive(Debug)]
-struct PackageNotFoundError(String);
+pub struct PackageNotFoundError(pub String);
 
 impl fmt::Display for PackageNotFoundError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -47,6 +47,35 @@ impl fmt::Display for PackageNotFoundError {
 }
 
 impl Error for PackageNotFoundError {}
+
+#[derive(Debug)]
+pub struct PackageVersionNotFoundError {
+    pub id: String,
+    pub version: String,
+}
+
+impl fmt::Display for PackageVersionNotFoundError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Version {} not found, run `versions {}` to see avalible versions",
+            self.version, self.id
+        )
+    }
+}
+
+impl Error for PackageVersionNotFoundError {}
+
+#[derive(Debug)]
+pub struct PackageNoVersionsError(pub String);
+
+impl fmt::Display for PackageNoVersionsError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Package `{}` has no versions", self.0)
+    }
+}
+
+impl Error for PackageNoVersionsError {}
 
 pub fn update() -> Result<(), Box<dyn Error>> {
     let mut path = env::current_exe()?;

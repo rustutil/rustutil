@@ -1,6 +1,9 @@
 use serde_json::{json, Value};
 
-use crate::{git::clone_else_pull, index::Package};
+use crate::{
+    git::clone_else_pull,
+    index::{Package, PackageNoVersionsError, PackageNotFoundError, PackageVersionNotFoundError},
+};
 use std::{
     env, fs,
     io::{self, Write},
@@ -11,34 +14,36 @@ use std::{
 static SOURCES_DIR: &str = "src";
 static BINARY_DIR: &str = "bin";
 
-pub fn add(package: &Package, version: &String) {
-    println!("Installing package `{}`...", package.id);
+pub fn add(package: &Package, version: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Installing package `{}`...", &package.id);
 
     if package.versions.as_object().unwrap().is_empty() {
-        println!("Package `{}` has no versions", package.id);
-        return;
+        return Err(Box::new(PackageNoVersionsError(package.id.clone())));
     }
-    let branch = package.versions.get(version).expect(&format!(
-        "Version {} not found, run `versions {}` to see avalible versions",
-        version, package.id
-    ));
+
+    let branch = &package
+        .versions
+        .get(&version)
+        .ok_or(PackageVersionNotFoundError {
+            id: package.id.clone(),
+            version: version.to_string(),
+        })?;
 
     println!("Cloning...");
-
-    let mut sources_path = env::current_exe().unwrap();
+    let mut sources_path = env::current_exe()?;
     sources_path.pop();
     sources_path.push(&SOURCES_DIR);
-    fs::create_dir_all(&sources_path).unwrap();
+    fs::create_dir_all(&sources_path)?;
 
-    let mut bin_path = env::current_exe().unwrap();
+    let mut bin_path = env::current_exe()?;
     bin_path.pop();
     bin_path.push(&BINARY_DIR);
-    fs::create_dir_all(&bin_path).unwrap();
+    fs::create_dir_all(&bin_path)?;
 
     let mut source_path = sources_path.clone();
     source_path.push(&package.id);
 
-    clone_else_pull(&package.repo, &source_path, branch.as_str().unwrap()).unwrap();
+    clone_else_pull(&package.repo, &source_path, &branch.as_str().unwrap())?;
 
     println!("Building...");
     // Build the package and get the output as a bunch of json
@@ -48,14 +53,13 @@ pub fn add(package: &Package, version: &String) {
         .arg("--message-format=json")
         .arg("-q")
         .current_dir(&source_path)
-        .output()
-        .unwrap();
+        .output()?;
 
-    // io::stdout().write_all(&output.stdout).unwrap(); // Uncomment to see the json output
-    io::stderr().write_all(&output.stderr).unwrap();
+    // io::stdout().write_all(&output.stdout).unwrap(); // Should add a flag to show this
+    io::stderr().write_all(&output.stderr)?;
 
     println!("Installing...");
-    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stdout = String::from_utf8(output.stdout)?;
 
     // Parse the JSON
     let json: Vec<Value> = stdout
@@ -64,56 +68,44 @@ pub fn add(package: &Package, version: &String) {
         .collect();
 
     // Get the path to the compiled binary
-    let executable_path = get_executable_path(json).unwrap();
+    let executable_path = get_executable_path(&json).unwrap();
     let extension = executable_path.extension().unwrap();
-    let new_name = format!("{}.{}", package.id, extension.to_str().unwrap());
-    let new_path = bin_path.join(new_name);
+    let new_name = format!("{}.{}", &package.id, &extension.to_str().unwrap());
+    let new_path = bin_path.join(&new_name);
 
     fs::rename(&executable_path, &new_path).unwrap();
     println!("Cleaning...");
     Command::new("cargo")
         .arg("clean")
         .current_dir(&source_path)
-        .status()
-        .unwrap();
+        .status()?;
 
     println!("Adding package to binary index...");
     // Map the ID to the path in the binary index
     let mut index_file = bin_path.clone();
     index_file.push("index.json");
 
-    let index_exists = Path::new(&index_file).try_exists().unwrap();
+    let index_exists = Path::new(&index_file).try_exists()?;
     if !index_exists {
-        let empty_object = serde_json::to_string(&json!({})).unwrap();
-        fs::write(&index_file, empty_object).unwrap();
+        let empty_object = serde_json::to_string(&json!({}))?;
+        fs::write(&index_file, &empty_object)?;
     }
 
-    let index = fs::read_to_string(&index_file).unwrap();
+    let index = fs::read_to_string(&index_file)?;
     let mut index: Value = serde_json::from_str(&index).unwrap_or_default();
 
     index.as_object_mut().unwrap().insert(
         package.id.clone(),
         Value::String(new_path.file_name().unwrap().to_str().unwrap().to_string()),
     );
-    fs::write(index_file, serde_json::to_string(&index).unwrap()).unwrap();
 
-    println!("Installed `{}`", package.id);
+    fs::write(index_file, serde_json::to_string(&index)?)?;
+
+    println!("Installed `{}`", &package.id);
+    Ok(())
 }
 
-// fn get_executable_path(build_out: Vec<Value>) -> Option<PathBuf> {
-//     for json in build_out {
-//         let executable = json.get("executable");
-//         match executable {
-//             Some(executable) => match executable.as_str() {
-//                 Some(path) => return Some(Path::new(path).to_path_buf()),
-//                 None => {}
-//             },
-//             None => {}
-//         }
-//     }
-//     return None;
-// }
-fn get_executable_path(build_out: Vec<Value>) -> Option<PathBuf> {
+fn get_executable_path(build_out: &Vec<Value>) -> Option<PathBuf> {
     build_out.into_iter().find_map(|json| {
         json.get("executable")
             .and_then(|executable| executable.as_str())
@@ -121,32 +113,31 @@ fn get_executable_path(build_out: Vec<Value>) -> Option<PathBuf> {
     })
 }
 
-pub fn remove(id: &String) {
+pub fn remove(id: &String) -> Result<(), Box<dyn std::error::Error>> {
     println!("Removing package `{}`...", id);
 
-    let mut sources_path = env::current_exe().unwrap();
+    let mut sources_path = env::current_exe()?;
     sources_path.pop();
     sources_path.push(&SOURCES_DIR);
 
-    let mut bins_path = env::current_exe().unwrap();
+    let mut bins_path = env::current_exe()?;
     bins_path.pop();
     bins_path.push(&BINARY_DIR);
 
     let mut index_file = bins_path.clone();
     index_file.push("index.json");
 
-    let index_exists = Path::new(&index_file).try_exists().unwrap();
+    let index_exists = Path::new(&index_file).try_exists()?;
 
     if !index_exists {
-        println!("Package is not installed");
-        return;
+        return Err(Box::new(PackageNotFoundError(id.to_string())));
     }
 
-    let index = fs::read_to_string(&index_file).unwrap();
+    let index = fs::read_to_string(&index_file)?;
     let index: Value = serde_json::from_str(&index).unwrap_or_default();
     let path = index
         .get(id)
-        .expect("Package is not installed")
+        .ok_or(PackageNotFoundError(id.to_string()))?
         .as_str()
         .unwrap();
 
@@ -154,7 +145,7 @@ pub fn remove(id: &String) {
     // Remove the package from the index
     let mut index = index.clone();
     index.as_object_mut().unwrap().remove(id);
-    fs::write(index_file, serde_json::to_string(&index).unwrap()).unwrap();
+    fs::write(index_file, serde_json::to_string(&index)?)?;
 
     println!("Removing package...");
     // Remove the package
@@ -173,6 +164,7 @@ pub fn remove(id: &String) {
     fs::remove_file(full_path).unwrap();
 
     println!("Package removed");
+    Ok(())
 }
 
 pub fn versions(package: &Package) {

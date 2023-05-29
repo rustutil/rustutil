@@ -43,10 +43,10 @@ fn main() {
         } => {
             let package = Package::from_id(id.to_string()).expect("Package not found");
             let version = &version.clone().unwrap_or("latest".to_owned());
-            packages::add(&package, version);
+            packages::add(&package, version).unwrap();
         }
         Commands::Remove { package: id } => {
-            packages::remove(&id);
+            packages::remove(&id).unwrap();
         }
         Commands::Update => {
             update().unwrap();
