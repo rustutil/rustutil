@@ -14,7 +14,18 @@ use std::{
 static SOURCES_DIR: &str = "src";
 static BINARY_DIR: &str = "bin";
 
-pub fn add(package: &Package, version: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn add(
+    packages: &Vec<Package>,
+    versions: &Vec<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    packages
+        .into_iter()
+        .zip(versions)
+        .try_for_each(|(package, version)| add_one(&package, &version))?;
+    Ok(())
+}
+
+fn add_one(package: &Package, version: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Installing package `{}`...", &package.id);
 
     if package.versions.as_object().unwrap().is_empty() {
@@ -102,6 +113,7 @@ pub fn add(package: &Package, version: &str) -> Result<(), Box<dyn std::error::E
     fs::write(index_file, serde_json::to_string(&index)?)?;
 
     println!("Installed `{}`", &package.id);
+    println!();
     Ok(())
 }
 
@@ -113,7 +125,14 @@ fn get_executable_path(build_out: &Vec<Value>) -> Option<PathBuf> {
     })
 }
 
-pub fn remove(id: &String) -> Result<(), Box<dyn std::error::Error>> {
+pub fn remove(packages: &Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+    packages
+        .iter()
+        .try_for_each(|package| remove_one(&package))?;
+    Ok(())
+}
+
+fn remove_one(id: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("Removing package `{}`...", id);
 
     let mut sources_path = env::current_exe()?;
@@ -164,10 +183,11 @@ pub fn remove(id: &String) -> Result<(), Box<dyn std::error::Error>> {
     fs::remove_file(full_path).unwrap();
 
     println!("Package removed");
+    println!();
     Ok(())
 }
 
-pub fn versions(package: &Package) {
+pub fn print_versions(package: &Package) {
     for version in package.versions.as_object().unwrap().keys() {
         if version == "latest" {
             continue;

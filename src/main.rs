@@ -17,15 +17,13 @@ struct Args {
 enum Commands {
     /// Adds a package
     Add {
-        /// Package ID
-        package: String,
-        /// Package version, latest if not specified
-        version: Option<String>,
+        /// Package ID(s), specify a version by adding @version. Example: "package@1.0.0", will automatically add the latest version if not specified
+        ids: Vec<String>,
     },
     /// Removes a package
     Remove {
-        // Package ID
-        package: String,
+        // Package ID(s)
+        ids: Vec<String>,
     },
     /// Updates the index
     Update,
@@ -37,23 +35,39 @@ fn main() {
     let args = Args::parse();
 
     match &args.command {
-        Commands::Add {
-            package: id,
-            version,
-        } => {
-            let package = Package::from_id(id.to_string()).expect("Package not found");
-            let version = &version.clone().unwrap_or("latest".to_owned());
-            packages::add(&package, version).unwrap();
+        Commands::Add { ids } => {
+            let packages = Package::from_ids(ids);
+            if packages.is_err() {
+                eprintln!("{}", &packages.err().unwrap());
+                return;
+            }
+            let packages = packages.unwrap();
+
+            let versions = ids
+                .iter()
+                .map(|i| i.split("@").nth(1).unwrap_or("latest"))
+                .collect::<Vec<&str>>();
+
+            let error = packages::add(&packages, &versions).err();
+            if error.is_some() {
+                eprintln!("{}", error.unwrap());
+            }
         }
-        Commands::Remove { package: id } => {
-            packages::remove(&id).unwrap();
+        Commands::Remove { ids } => {
+            let error = packages::remove(ids).err();
+            if error.is_some() {
+                eprintln!("{}", error.unwrap());
+            }
         }
         Commands::Update => {
-            update().unwrap();
+            let error = update().err();
+            if error.is_some() {
+                eprintln!("{}", error.unwrap());
+            }
         }
         Commands::Versions { package: id } => {
-            let package = Package::from_id(id.to_string()).expect("Package not found");
-            packages::versions(&package);
+            let package = Package::from_id(id).expect("Package not found");
+            packages::print_versions(&package);
         }
     };
 }

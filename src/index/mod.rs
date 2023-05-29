@@ -16,13 +16,16 @@ pub struct Package {
 }
 
 impl Package {
-    pub fn from_id(id: String) -> Result<Self, Box<dyn Error>> {
+    pub fn from_id(id: &str) -> Result<Self, Box<dyn Error>> {
         update()?;
+        Package::get(id)
+    }
+    fn get(id: &str) -> Result<Self, Box<dyn Error>> {
         let mut path = env::current_exe()?;
         path.pop();
         path.push(&INDEX_DIR);
         path.push(&PACKAGE_DIR);
-        path.push(id.clone() + ".json");
+        path.push(id.to_owned() + ".json");
 
         let path = Path::new(&path);
 
@@ -32,8 +35,12 @@ impl Package {
             let package: Package = serde_json::from_str(&contents)?;
             Ok(package)
         } else {
-            Err(Box::new(PackageNotFoundError(id)))
+            Err(Box::new(PackageNotFoundError(id.to_owned())))
         }
+    }
+    pub fn from_ids(ids: &Vec<String>) -> Result<Vec<Self>, Box<dyn Error>> {
+        update()?;
+        ids.iter().map(|id| Package::from_id(id)).collect()
     }
 }
 
