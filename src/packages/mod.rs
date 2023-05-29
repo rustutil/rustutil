@@ -100,15 +100,25 @@ pub fn add(package: &Package, version: &String) {
     println!("Installed `{}`", package.id);
 }
 
+// fn get_executable_path(build_out: Vec<Value>) -> Option<PathBuf> {
+//     for json in build_out {
+//         let executable = json.get("executable");
+//         match executable {
+//             Some(executable) => match executable.as_str() {
+//                 Some(path) => return Some(Path::new(path).to_path_buf()),
+//                 None => {}
+//             },
+//             None => {}
+//         }
+//     }
+//     return None;
+// }
 fn get_executable_path(build_out: Vec<Value>) -> Option<PathBuf> {
-    for json in build_out {
-        let executable = json.get("executable").unwrap().as_str();
-        match executable {
-            Some(executable) => return Some(Path::new(executable).to_path_buf()),
-            None => {}
-        }
-    }
-    return None;
+    build_out.into_iter().find_map(|json| {
+        json.get("executable")
+            .and_then(|executable| executable.as_str())
+            .map(|path| Path::new(path).to_path_buf())
+    })
 }
 
 pub fn remove(id: &String) {
