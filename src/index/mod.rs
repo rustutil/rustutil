@@ -38,7 +38,7 @@ impl Package {
             Err(Box::new(PackageNotFoundError(id.to_owned())))
         }
     }
-    pub fn from_ids(ids: &Vec<String>) -> Result<Vec<Self>, Box<dyn Error>> {
+    pub fn from_ids(ids: &Vec<&str>) -> Result<Vec<Self>, Box<dyn Error>> {
         update()?;
         ids.iter().map(|id| Package::from_id(id)).collect()
     }
