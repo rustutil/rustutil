@@ -51,6 +51,8 @@ enum Commands {
     Update,
     /// Lists versions of a package
     Versions { id: String },
+    /// Lists the installed packages
+    List,
     /// Commands related to the index
     Index {
         #[command(subcommand)]
@@ -130,7 +132,10 @@ fn main() {
                 return;
             }
             let package = package.unwrap();
-            packages::print_versions(&package);
+            let versions = packages::versions(&package);
+            for version in versions {
+                println!("{}", version);
+            }
         }
         Commands::Index { command } => match command {
             IndexCommands::List => {
@@ -185,5 +190,19 @@ fn main() {
                 println!("Package JSON\n{}", string);
             }
         },
+        Commands::List => {
+            let list = packages::list();
+
+            if list.is_err() {
+                error!("{}", &list.err().unwrap());
+                return;
+            }
+
+            let list = list.unwrap();
+
+            for package in list {
+                println!("{}", package);
+            }
+        }
     };
 }

@@ -1,10 +1,13 @@
 use log::info;
-use serde_json::{json, Value};
+use serde_json::{json, map::Keys, Value};
 
 use crate::{
     experiments::has_experiment,
     git::clone_else_pull,
-    index::{Package, PackageNoVersionsError, PackageNotFoundError, PackageVersionNotFoundError},
+    index::{
+        NoBinaryIndex, Package, PackageNoVersionsError, PackageNotFoundError,
+        PackageVersionNotFoundError,
+    },
     Experiment,
 };
 use std::{
@@ -317,8 +320,28 @@ fn remove_one(
     Ok(())
 }
 
-pub fn print_versions(package: &Package) {
-    for version in package.versions.as_object().unwrap().keys() {
-        println!("{}", version);
+pub fn versions(package: &Package) -> Keys {
+    package.versions.as_object().unwrap().keys()
+}
+
+pub fn list() -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let mut index_file = env::current_exe()?;
+    index_file.pop();
+    index_file.push(&BINARY_DIR);
+    index_file.push("index.json");
+
+    let index_exists = Path::new(&index_file).try_exists()?;
+
+    if !index_exists {
+        return Err(Box::new(NoBinaryIndex));
     }
+
+    let index = fs::read_to_string(&index_file)?;
+    let index: Value = serde_json::from_str(&index).unwrap_or_default();
+    Ok(index
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(|x| x.to_owned())
+        .collect::<Vec<String>>())
 }

@@ -84,6 +84,17 @@ impl fmt::Display for PackageNoVersionsError {
 
 impl Error for PackageNoVersionsError {}
 
+#[derive(Debug)]
+pub struct NoBinaryIndex;
+
+impl fmt::Display for NoBinaryIndex {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "There is no binary index")
+    }
+}
+
+impl Error for NoBinaryIndex {}
+
 pub fn update() -> Result<(), Box<dyn Error>> {
     let mut path = env::current_exe()?;
     path.pop();
