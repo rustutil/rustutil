@@ -235,7 +235,6 @@ pub fn remove(
 }
 
 fn remove_bin(index_file: &PathBuf, id: &str) -> Result<String, Box<dyn std::error::Error>> {
-    info!("Removing from binary index");
     let index = fs::read_to_string(&index_file)?;
     let index: Value = serde_json::from_str(&index).unwrap_or_default();
     let path = index
@@ -244,6 +243,7 @@ fn remove_bin(index_file: &PathBuf, id: &str) -> Result<String, Box<dyn std::err
         .as_str()
         .unwrap();
 
+    info!("Removing from binary index");
     // Remove the package from the index
     let mut index = index.clone();
     index.as_object_mut().unwrap().remove(id);
