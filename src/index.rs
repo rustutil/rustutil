@@ -93,3 +93,17 @@ pub fn update() -> Result<(), Box<dyn Error>> {
     clone_else_pull(&REPO_URL, path, "main")?;
     Ok(())
 }
+
+pub fn list_ids() -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    update()?;
+    let mut path = env::current_exe()?;
+    path.pop();
+    path.push(&INDEX_DIR);
+    path.push(&PACKAGE_DIR);
+
+    let files = fs::read_dir(path)?;
+    Ok(files
+        .map(|file| file.unwrap().path())
+        .map(|name| name.file_stem().unwrap().to_str().unwrap().to_owned())
+        .collect::<Vec<_>>())
+}
