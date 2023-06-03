@@ -21,13 +21,14 @@ impl log::Log for ColoredLogger {
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
             println!(
-                "{}: {}",
+                "{}{} {}",
                 record
                     .level()
                     .to_string()
                     .to_lowercase()
                     .color(level_to_color(record.level()))
                     .bold(),
+                ":".bold(),
                 // record.target().green().bold(),
                 record.args()
             );

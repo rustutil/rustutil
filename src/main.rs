@@ -6,7 +6,6 @@ use input::prompt;
 use log::{error, warn};
 use logger::init;
 use serde_json::json;
-use url::Url;
 
 pub mod experiments;
 pub mod git;
@@ -166,9 +165,10 @@ fn main() {
                 }
                 'repo: loop {
                     repo = prompt("Repository").unwrap();
-                    // TODO: Check if it is a git repository
-                    if Url::parse(&repo).is_err() {
-                        error!("Invalid repository URL");
+                    // TODO: Smaller Validation, this makes binary 0.24 MiB Larger
+                    //url::Url::parse(&repo).is_err()
+                    if false {
+                        error!("Repository must be a valid URL")
                     } else {
                         break 'repo;
                     }
