@@ -1,13 +1,10 @@
-use clap::{Parser, Subcommand, ValueEnum};
-use colored::*;
-use experiments::has_experiments;
+use clap::{Parser, Subcommand};
 use index::{update, Package};
 use input::prompt;
-use log::{error, warn};
+use log::error;
 use logger::init;
 use serde_json::json;
 
-pub mod experiments;
 pub mod git;
 pub mod index;
 pub mod input;
@@ -20,18 +17,6 @@ pub mod repo;
 struct Args {
     #[command(subcommand)]
     command: Commands,
-
-    /// Enables some experiments
-    #[arg(short = 'e', long = "experiment-enable", value_enum)]
-    experiments: Option<Vec<Experiment>>,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
-pub enum Experiment {
-    /// Enables the target cache, this saves the target directory to /targets.
-    /// This saves rebuilding a packages depencencies when updating.
-    /// The folder is deleted when the package is removed.
-    TargetCache,
 }
 
 #[derive(Subcommand, Debug)]
@@ -72,22 +57,6 @@ fn main() {
 
     let args = Args::parse();
 
-    if has_experiments(&args.experiments) {
-        let experiments_joined = &args
-            .experiments
-            .as_ref()
-            .unwrap()
-            .into_iter()
-            .map(|e| e.to_possible_value().unwrap().get_name().to_owned())
-            .collect::<Vec<String>>()
-            .join(", ");
-
-        warn!(
-            "You have experiments ({}) enabled. These are experimental and may not work as expected.",
-            experiments_joined.blue()
-        );
-    }
-
     match &args.command {
         Commands::Add { ids: id_versions } => {
             let split = id_versions.iter().map(|x| x.split("@"));
@@ -107,13 +76,13 @@ fn main() {
             }
             let packages = packages.unwrap();
 
-            let error = packages::add(&packages, &versions, &args.experiments).err();
+            let error = packages::add(&packages, &versions).err();
             if error.is_some() {
                 error!("{}", error.unwrap());
             }
         }
         Commands::Remove { ids } => {
-            let error = packages::remove(&ids, &args.experiments).err();
+            let error = packages::remove(&ids).err();
             if error.is_some() {
                 error!("{}", error.unwrap());
             }

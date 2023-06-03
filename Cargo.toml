@@ -17,3 +17,9 @@ lto = true          # Enable link-time optimization
 codegen-units = 1   # Reduce number of codegen units to increase optimizations
 panic = "abort"     # Abort on panic
 strip = true        # Strip symbols from binary
+
+[features]
+# Enables the target cache, this saves the target directory to /targets.
+# This saves rebuilding a packages depencencies when updating.
+# The folder is deleted when the package is removed.
+target-cache = []

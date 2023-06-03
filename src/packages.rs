@@ -2,13 +2,11 @@ use log::info;
 use serde_json::{json, map::Keys, Value};
 
 use crate::{
-    experiments::has_experiment,
     git::clone_else_pull,
     index::{
         NoBinaryIndex, Package, PackageNoVersionsError, PackageNotFoundError,
         PackageVersionNotFoundError,
     },
-    Experiment,
 };
 use std::{
     env, fs,
@@ -19,17 +17,18 @@ use std::{
 
 static SOURCES_DIR: &str = "src";
 static BINARY_DIR: &str = "bin";
+
+#[cfg(feature = "target-cache")]
 static TARGETS_DIR: &str = "targets";
 
 pub fn add(
     packages: &Vec<Package>,
     versions: &Vec<&str>,
-    experiments: &Option<Vec<Experiment>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     packages
         .into_iter()
         .zip(versions)
-        .try_for_each(|(package, version)| add_one(&package, &version, &experiments))?;
+        .try_for_each(|(package, version)| add_one(&package, &version))?;
     Ok(())
 }
 
@@ -43,6 +42,7 @@ fn clone(
     Ok(())
 }
 
+#[cfg(feature = "target-cache")]
 fn target_cache_copy(
     package: &Package,
     source_path: &PathBuf,
@@ -67,11 +67,11 @@ fn target_cache_copy(
 }
 
 fn build(
-    package: &Package,
     source_path: &PathBuf,
-    experiments: &Option<Vec<Experiment>>,
+    #[cfg(feature = "target-cache")] package: &Package,
 ) -> Result<Output, Box<dyn std::error::Error>> {
-    if has_experiment(experiments, &Experiment::TargetCache) {
+    #[cfg(feature = "target-cache")]
+    {
         target_cache_copy(&package, &source_path)?;
     }
 
@@ -94,6 +94,7 @@ fn build(
     Ok(output)
 }
 
+#[cfg(feature = "target-cache")]
 fn cache(package: &Package, source_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     info!(target: "target-cache", "Caching");
 
@@ -114,6 +115,8 @@ fn cache(package: &Package, source_path: &PathBuf) -> Result<(), Box<dyn std::er
     fs::rename(&cargo_target_path, &target_path)?;
     Ok(())
 }
+
+#[cfg(not(feature = "target-cache"))]
 fn clean(source_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     info!("Cleaning");
     Command::new("cargo")
@@ -147,11 +150,7 @@ fn install(
     Ok(out_name)
 }
 
-fn add_one(
-    package: &Package,
-    version: &str,
-    experiments: &Option<Vec<Experiment>>,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn add_one(package: &Package, version: &str) -> Result<(), Box<dyn std::error::Error>> {
     info!("Installing package `{}`", &package.id);
 
     if package.versions.as_object().unwrap().is_empty() {
@@ -182,14 +181,24 @@ fn add_one(
     source_path.push(&package.id);
 
     clone(&package, &branch, &source_path)?;
-    let output = build(&package, &source_path, &experiments)?;
+    let output = build(
+        &source_path,
+        #[cfg(feature = "target-cache")]
+        &package,
+    )?;
     let out_name = install(package, &bin_path, &output)?;
 
-    if has_experiment(experiments, &Experiment::TargetCache) {
+    // Run code when the target cache is disabled
+
+    #[cfg(feature = "target-cache")]
+    {
         cache(&package, &source_path)?;
-    } else {
+    }
+    #[cfg(not(feature = "target-cache"))]
+    {
         clean(&source_path)?;
     }
+
     info!("Adding to binary index");
     // Map the ID to the path in the binary index
     let mut index_file = bin_path.clone();
@@ -224,13 +233,10 @@ fn get_executable_path(build_out: &Vec<Value>) -> Option<PathBuf> {
     })
 }
 
-pub fn remove(
-    packages: &Vec<String>,
-    experiments: &Option<Vec<Experiment>>,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn remove(packages: &Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     packages
         .iter()
-        .try_for_each(|package| remove_one(&package, experiments))?;
+        .try_for_each(|package| remove_one(&package))?;
     Ok(())
 }
 
@@ -275,10 +281,7 @@ fn remove_pkg(
     Ok(())
 }
 
-fn remove_one(
-    id: &str,
-    experiments: &Option<Vec<Experiment>>,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn remove_one(id: &str) -> Result<(), Box<dyn std::error::Error>> {
     info!("Removing package `{}`", id);
 
     let mut sources_path = env::current_exe()?;
@@ -301,7 +304,8 @@ fn remove_one(
     let executable_path = remove_bin(&index_file, &id)?;
     remove_pkg(&bins_path, &sources_path, &executable_path, &id)?;
 
-    if has_experiment(experiments, &Experiment::TargetCache) {
+    #[cfg(feature = "target-cache")]
+    {
         let mut targets_path = env::current_exe()?;
         targets_path.pop();
         targets_path.push(&TARGETS_DIR);
