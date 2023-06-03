@@ -1,5 +1,7 @@
 # rustutil
 
+<img width="200" alt="logo" src="https://github.com/rustutil/.github/assets/62805599/81ddd70d-be1a-41bb-a0c1-902d22784832"/>
+
 Rustutil is a utility package manager for rust applications.
 
 ## Dependencies
