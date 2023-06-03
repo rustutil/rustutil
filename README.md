@@ -4,43 +4,24 @@
 
 Rustutil is a utility package manager for rust applications.
 
-## Dependencies
+## Runtime Dependencies
 
 - Cargo
 
-## Building
-
-```sh
-cargo build
-```
-
 ## Usage
 
-If you built by yourself
-
 ```sh
-cargo run -q -- [args]
+rustutil --help
 ```
 
-If you downloaded an executable
+You can also specify no args to get help.  
+When you first install a package, add `path/to/exe/../bin` to path. Then you may run a package by running its id in your shell.
 
-```sh
-path/to/executable [args]
-```
+## Experimental Features
 
-Specify no args to get help.  
-When you first install a package, go to where you placed the executable and add the `bin` folder to path. Then you may run a package by typing in its ID.
+You can enable experimental features when you build. Currently, the avalible features are
 
-## Examples
-
-To install a test package:
-
-```sh
-rustutil add helloworld
-```
-
-To run the test package
-
-```sh
-helloworld
-```
+- **target-cache**  
+  Enables the target cache, this saves the target directory to /targets.
+  This saves rebuilding a packages depencencies when updating.
+  The folder is deleted when the package is removed.

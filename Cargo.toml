@@ -19,7 +19,6 @@ panic = "abort"     # Abort on panic
 strip = true        # Strip symbols from binary
 
 [features]
-# Enables the target cache, this saves the target directory to /targets.
-# This saves rebuilding a packages depencencies when updating.
-# The folder is deleted when the package is removed.
-target-cache = []
+target-cache = [] # Enables the target cache, this saves the target directory to /targets.
+                  # This saves rebuilding a packages depencencies when updating.
+                  # The folder is deleted when the package is removed.
