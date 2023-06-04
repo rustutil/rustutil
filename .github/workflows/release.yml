@@ -17,12 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         # Build for all targets
-        target:
-          [
-            x86_64-pc-windows-gnu,
-            x86_64-unknown-linux-musl,
-            x86_64-apple-darwin,
-          ]
+        target: [x86_64-pc-windows-gnu, x86_64-unknown-linux-musl]
     steps:
       - uses: actions/checkout@master
       - name: Compile and release
