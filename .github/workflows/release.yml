@@ -1,9 +1,11 @@
 name: Release
 
+# Run when a release is created
 on:
   release:
     types: [created]
 
+# Allow adding to releases
 permissions:
   contents: write
 
@@ -14,7 +16,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [x86_64-pc-windows-gnu, x86_64-unknown-linux-musl]
+        # Build for all targets
+        target:
+          [
+            x86_64-pc-windows-gnu,
+            x86_64-unknown-linux-musl,
+            x86_64-apple-darwin,
+          ]
     steps:
       - uses: actions/checkout@master
       - name: Compile and release
