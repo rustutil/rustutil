@@ -142,12 +142,11 @@ fn install(
 
     // Get the path to the compiled binary
     let executable_path = get_executable_path(&json).unwrap();
-    let out_extension = executable_path.extension().unwrap();
-    let out_name = format!("{}.{}", &package.id, &out_extension.to_str().unwrap());
+    let out_name = Path::new(executable_path.file_name().unwrap()).with_file_name(&package.id);
     let out_path = bin_path.join(&out_name);
 
     fs::rename(&executable_path, &out_path)?;
-    Ok(out_name)
+    Ok(out_name.to_str().unwrap().to_string())
 }
 
 fn add_one(package: &Package, version: &str) -> Result<(), Box<dyn std::error::Error>> {
