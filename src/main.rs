@@ -1,16 +1,12 @@
 use clap::{Parser, Subcommand};
 use index::{update, Package};
-use input::prompt;
 use log::error;
 use logger::init;
-use serde_json::json;
 
 pub mod git;
 pub mod index;
-pub mod input;
 pub mod logger;
 pub mod packages;
-pub mod repo;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -31,8 +27,6 @@ enum Commands {
         // Package ID(s)
         ids: Vec<String>,
     },
-    /// Updates the index
-    Update,
     /// Lists versions of a package
     Versions { id: String },
     /// Lists the installed packages
@@ -48,12 +42,12 @@ enum Commands {
 enum IndexCommands {
     /// Lists all avalible packages. WARNING: This is slow and will flood your terminal!
     List,
-    /// Makes a package manifest
-    CreatePackage,
+    /// Updates the index
+    Update,
 }
 
 fn main() {
-    init().unwrap();
+    init().expect("Failed to init logger");
 
     let args = Args::parse();
 
@@ -87,12 +81,6 @@ fn main() {
                 error!("{}", error.unwrap());
             }
         }
-        Commands::Update => {
-            let error = update().err();
-            if error.is_some() {
-                error!("{}", error.unwrap());
-            }
-        }
         Commands::Versions { id } => {
             let package = Package::from_id(&id);
             if package.is_err() {
@@ -120,43 +108,11 @@ fn main() {
                     println!("{}", id);
                 }
             }
-            IndexCommands::CreatePackage => {
-                let mut id;
-                let mut repo;
-                let mut latest;
-                'id: loop {
-                    id = prompt("Package ID").unwrap();
-                    if id.contains(" ") || id.is_empty() || !id.is_ascii() {
-                        error!("Package ID may not contain spaces, be empty or non-ascii");
-                    } else {
-                        break 'id;
-                    }
+            IndexCommands::Update => {
+                let error = update().err();
+                if error.is_some() {
+                    error!("{}", error.unwrap());
                 }
-                'repo: loop {
-                    repo = prompt("Repository").unwrap();
-                    // TODO: Smaller Validation, this makes binary 0.24 MiB Larger
-                    //url::Url::parse(&repo).is_err()
-                    if false {
-                        error!("Repository must be a valid URL")
-                    } else {
-                        break 'repo;
-                    }
-                }
-                'latest: loop {
-                    latest = prompt("Main branch").unwrap();
-                    if latest.contains(" ") || latest.is_empty() || !latest.is_ascii() {
-                        error!("Branch name may not contain spaces, be empty or non-ascii");
-                    } else {
-                        break 'latest;
-                    }
-                }
-                let package: Package = Package {
-                    id,
-                    repo,
-                    versions: json!({ "latest": latest }),
-                };
-                let string = serde_json::to_string(&package).unwrap();
-                println!("Package JSON\n{}", string);
             }
         },
         Commands::List => {

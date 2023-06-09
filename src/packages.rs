@@ -1,3 +1,4 @@
+use colored::Colorize;
 use log::info;
 use serde_json::{json, map::Keys, Value};
 
@@ -28,7 +29,7 @@ pub fn add(
     packages
         .into_iter()
         .zip(versions)
-        .try_for_each(|(package, version)| add_one(&package, &version))?;
+        .try_for_each(|(package, version)| add_one(&package, *version))?;
     Ok(())
 }
 
@@ -88,7 +89,7 @@ fn build(
         .current_dir(&source_path)
         .output()?;
 
-    // io::stdout().write_all(&output.stdout).unwrap(); // Should add a flag to show this
+    // io::stdout().write_all(&output.stdout).unwrap();
     io::stderr().write_all(&output.stderr)?;
 
     Ok(output)
@@ -150,7 +151,7 @@ fn install(
 }
 
 fn add_one(package: &Package, version: &str) -> Result<(), Box<dyn std::error::Error>> {
-    info!("Installing package `{}`", &package.id);
+    info!("Installing package {}", &package.id.bold());
 
     if package.versions.as_object().unwrap().is_empty() {
         return Err(Box::new(PackageNoVersionsError(package.id.clone())));
@@ -219,7 +220,7 @@ fn add_one(package: &Package, version: &str) -> Result<(), Box<dyn std::error::E
 
     fs::write(index_file, serde_json::to_string(&index)?)?;
 
-    info!("Installed `{}`", &package.id);
+    info!("Installed {}", &package.id.bold());
     println!();
     Ok(())
 }
@@ -281,7 +282,7 @@ fn remove_pkg(
 }
 
 fn remove_one(id: &str) -> Result<(), Box<dyn std::error::Error>> {
-    info!("Removing package `{}`", id);
+    info!("Removing package {}", id.bold());
 
     let mut sources_path = env::current_exe()?;
     sources_path.pop();

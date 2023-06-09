@@ -114,7 +114,14 @@ pub fn list_ids() -> Result<Vec<String>, Box<dyn std::error::Error>> {
 
     let files = fs::read_dir(path)?;
     Ok(files
-        .map(|file| file.unwrap().path())
-        .map(|name| name.file_stem().unwrap().to_str().unwrap().to_owned())
-        .collect::<Vec<_>>())
+        .map(|file| {
+            file.unwrap()
+                .path()
+                .file_stem()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect::<Vec<String>>())
 }
